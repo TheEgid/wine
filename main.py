@@ -9,11 +9,11 @@ def apply_list_split(lst, delimiter):
     return [lst[i: j] for i, j in zip(split_points, split_points[1:])]
 
 
-def get_wines_contents(filepath):
+def parse_wines_contents(filepath):
     with open(filepath, encoding='utf8') as f:
         lines = [row.replace('\n', '') for row in f]
 
-    raw_data = list()
+    temp_data = list()
     for line in lines:
         if ': ' in line:
             line = line.split(': ')
@@ -24,14 +24,15 @@ def get_wines_contents(filepath):
         else:
             line = None
         if line:
-            raw_data.append(line)
+            temp_data.append(line)
 
     wines_contents = dict()
-    for elem in apply_list_split(raw_data, 'Категория'):
+    for elem in apply_list_split(temp_data, 'Категория'):
         category = elem[0][1]
-        content_items = elem[1:]
-        wines_contents[category] = [dict(x) for x in
-                                   apply_list_split(content_items, 'Название')]
+        contents = elem[1:]
+        wines_contents[category] = [dict(row) for row in
+                                    apply_list_split(contents, 'Название')]
+
     return wines_contents
 
 
@@ -41,18 +42,16 @@ def get_years_after_foundation():
 
 
 def render():
-    env = Environment(
-        loader=FileSystemLoader('.'),
-        autoescape=select_autoescape(['html', 'xml'])
-    )
+    env = Environment(loader=FileSystemLoader('.'),
+                      autoescape=select_autoescape(['html', 'xml']))
     template = env.get_template('template_index.html')
+
     years = get_years_after_foundation()
-    wines_contents = get_wines_contents(filepath='products.txt')
-    print(wines_contents)
+    wines_contents = parse_wines_contents(filepath='products.txt')
 
     rendered_page = template.render(years=years, wines_contents=wines_contents)
-    with open('index.html', 'w', encoding='utf8') as file:
-        file.write(rendered_page)
+    with open('index.html', 'w', encoding='utf8') as f:
+        f.write(rendered_page)
 
 
 def main():
