@@ -9,6 +9,20 @@ def get_file_content(filepath: str) -> list:
         return [line.replace('\n', '') for line in f]
 
 
+def handle_lines(lines: list, delimiter: str) -> str:
+    for line in lines:
+        if ': ' in line:
+            line = line.split(': ')
+        elif '# ' in line:
+            line = [delimiter, line.replace('# ', '')]
+        elif 'Выгодное предложение' in line:
+            line = ['Акция', line]
+        else:
+            line = None
+        if line:
+            yield line
+
+
 def add_to_dict(lst: list) -> dict:
     out_dict = dict()
     for item in lst:
@@ -17,7 +31,7 @@ def add_to_dict(lst: list) -> dict:
     return out_dict
 
 
-def get_split_points(lst: list, delimiter: str) -> list:
+def get_split_points(lst: list, delimiter: str) -> int:
     """
     lst = [['Category', 'High'], ['p1', 1], ['Category', 'Low'], ['p2', 2]]
     list(get_split_points(lst, 'Category')) --> [0, 2, 4]
@@ -43,20 +57,8 @@ def split_into_blocks_by_delimiter(lst: list, delimiter: str) -> list:
 
 def parse_wine(file_lines: list) -> dict:
     delimiter = 'Категория'
-    preprocessed_lines = list()
+    preprocessed_lines = list(handle_lines(file_lines, delimiter))
     wine = dict()
-
-    for line in file_lines:
-        if ': ' in line:
-            line = line.split(': ')
-        elif '# ' in line:
-            line = [delimiter, line.replace('# ', '')]
-        elif 'Выгодное предложение' in line:
-            line = ['Акция', line]
-        else:
-            line = None
-        if line:
-            preprocessed_lines.append(line)
 
     for category_descr_lines in split_into_blocks_by_delimiter(
             preprocessed_lines, delimiter=delimiter):
