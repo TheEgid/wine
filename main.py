@@ -1,42 +1,74 @@
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-def apply_list_split(lst: list, delimiter: str) -> list:
-    split_points = [index for index, item in enumerate(lst)
-                    if delimiter in item]
-    split_points.append(len(lst))
-    return [lst[j: i] for j, i in zip(split_points, split_points[1:])]
-
-
-def parse_vines_content(filepath: str) -> dict:
+def get_file_content(filepath: str) -> list:
     with open(filepath, encoding='utf8') as f:
-        lines = [row.replace('\n', '') for row in f]
+        return [line.replace('\n', '') for line in f]
 
+
+def add_to_dict(lst: list) -> dict:
+    out_dict = dict()
+    for item in lst:
+        key, value = item
+        out_dict.update({key: value})
+    return out_dict
+
+
+def get_split_points(lst: list, delimiter: str) -> list:
+    """
+    lst = [['Category', 'High'], ['p1', 1], ['Category', 'Low'], ['p2', 2]]
+    list(get_split_points(lst, 'Category')) --> [0, 2, 4]
+    """
+    for split_point, item in enumerate(lst):
+        if delimiter in item:
+            yield split_point
+        if split_point + 1 == len(lst):
+            yield len(lst)
+
+
+def split_into_blocks_by_delimiter(lst: list, delimiter: str) -> list:
+    """
+    lst = [['Category', 'High'], ['p1', 1], ['Category', 'Low'], ['p2', 2]]
+    list(split_by_delimiter(lst, "Category")) -->
+        [[['Category', 'High'], ['p1', 1]], [['Category', 'Low'], ['p2', 2]]]
+    """
+    split_points = list(get_split_points(lst, delimiter))
+    offset_split_points = split_points[1:]
+    for cut_start_el, cut_end_el in zip(split_points, offset_split_points):
+        yield lst[cut_start_el: cut_end_el]
+
+
+def parse_wine(file_lines: list) -> dict:
     delimiter = 'Категория'
-    raw_data_list = list()
-    for line in lines:
+    preprocessed_lines = list()
+    wine = dict()
+
+    for line in file_lines:
         if ': ' in line:
             line = line.split(': ')
         elif '# ' in line:
-            line = [delimiter, line.replace('# ','')]
+            line = [delimiter, line.replace('# ', '')]
         elif 'Выгодное предложение' in line:
             line = ['Акция', line]
         else:
             line = None
         if line:
-            raw_data_list.append(line)
+            preprocessed_lines.append(line)
 
-    vines_content = dict()
-    for data in apply_list_split(raw_data_list, delimiter=delimiter):
-        _category_name, *_category_content = data
+    for category_descr_lines in split_into_blocks_by_delimiter(
+            preprocessed_lines, delimiter=delimiter):
+
+        _category_name, *_category_attrs = category_descr_lines
         _, category_name = _category_name
-        splitted_content_list = apply_list_split(_category_content,
-                                                 delimiter='Название')
-        vines_content[category_name] = [dict(content) for content in
-                                        splitted_content_list]
-    return vines_content
+        categories_with_wine_attrs = split_into_blocks_by_delimiter(
+            _category_attrs, delimiter='Название')
+
+        wine[category_name] = [add_to_dict(category) for category
+                               in categories_with_wine_attrs]
+    return wine
 
 
 def get_years_after_foundation() -> int:
@@ -49,9 +81,9 @@ def render():
                       autoescape=select_autoescape(['html', 'xml']))
     template = env.get_template('template_index.html')
     years = get_years_after_foundation()
-    wines_content = parse_vines_content(filepath='products.txt')
-
-    rendered_page = template.render(years=years, wines_content=wines_content)
+    file_lines = get_file_content(filepath='products.txt')
+    wine = parse_wine(file_lines)
+    rendered_page = template.render(years=years, wines_content=wine)
     with open('index.html', 'w', encoding='utf8') as f:
         f.write(rendered_page)
 
